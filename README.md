@@ -1,63 +1,71 @@
 import socket
 
-def main():
-    server_socket = socket.socket()
-    server_socket.bind(("127.0.0.1", 1234))
-    server_socket.listen()
+HOST = "127.0.0.1"
+PORT = 65432
 
-    print("Waiting for connection...")
-    client_socket, address = server_socket.accept()
+server_address = (HOST, PORT)
 
-    size_data = b""
-    while len(size_data) < 4:
-        part = client_socket.recv(4 - len(size_data))
-        if part == b"":
-            break
-        size_data += part
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    if len(size_data) == 4:
-        file_size = int.from_bytes(size_data, byteorder="big")
+print("Connecting...")
+client.connect(server_address)
+print("Connection established!")
 
-        file = open("received_file.txt", "wb")
+while True:
+    data = client.recv(1024)
 
-        received = 0
-        while received < file_size:
-            data = client_socket.recv(min(1024, file_size - received))
-            if data == b"":
-                break
+    if not data:
+        break
 
-            file.write(data)
-            received += len(data)
+    message = data.decode("utf-8")
+    print("Received:", message)
 
-        file.close()
-
-    client_socket.close()
-    server_socket.close()
+client.close()
 
 
-if __name__ == "__main__":
-    main()
 
 
 
 import socket
+import threading
+from queue import Queue
+
+HOST = "127.0.0.1"
+PORT = 65432
+
+server_address = (HOST, PORT)
+
+messages = Queue()
+
+
+def get_messages():
+    while True:
+        message = input("Enter a message: ")
+        messages.put(message)
+
+
+def send_messages(client):
+    while True:
+        message = messages.get()
+        client.sendall(message.encode("utf-8"))
+
+
+def start_server():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(server_address)
+
+    print("Waiting for connection...")
+    server.listen(3)
+
+    client, address = server.accept()
+    print("Connected to:", address)
+
+    send_messages(client)
+
 
 def main():
-    client_socket = socket.socket()
-    client_socket.connect(("127.0.0.1", 1234))
-
-    file = open("file.txt", "rb")
-    data = file.read()
-    file.close()
-
-    file_size = len(data)
-
-    size_data = file_size.to_bytes(4, byteorder="big")
-
-    client_socket.sendall(size_data)
-    client_socket.sendall(data)
-
-    client_socket.close()
+    threading.Thread(target=get_messages).start()
+    threading.Thread(target=start_server).start()
 
 
 if __name__ == "__main__":
